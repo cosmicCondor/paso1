@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sudoku — El código oculto</title>
+  <style>
+    :root {
+      --bg: #080b16;
+      --panel: rgba(17, 23, 43, .82);
+      --panel-strong: #151c35;
+      --line: rgba(139, 157, 214, .24);
+      --text: #f4f7ff;
+      --muted: #aab5d3;
+      --accent: #73e6d0;
+      --accent-2: #a979ff;
+      --danger: #ff748d;
+      --gold: #ffd76a;
+      --shadow: 0 22px 70px rgba(0, 0, 0, .38);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(115, 230, 208, .16), transparent 28rem),
+        radial-gradient(circle at 90% 85%, rgba(169, 121, 255, .17), transparent 32rem),
+        linear-gradient(135deg, #070911, #10152b 55%, #080b16);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .15;
+      background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(to bottom, black, transparent 85%);
+    }
+
+    .app { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 38px 0 48px; }
+
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+    .eyebrow { color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+    h1 { margin: 8px 0 10px; font-size: clamp(2rem, 5vw, 4rem); line-height: .98; letter-spacing: -.06em; }
+    h1 span { color: var(--accent); text-shadow: 0 0 28px rgba(115,230,208,.45); }
+    .intro { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.65; }
+    .badge { display: flex; align-items: center; gap: 9px; white-space: nowrap; padding: 11px 15px; border: 1px solid rgba(115,230,208,.3); border-radius: 999px; color: var(--accent); background: rgba(115,230,208,.08); font-size: .82rem; font-weight: 700; }
+    .badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+
+    .layout { display: grid; grid-template-columns: minmax(300px, 660px) minmax(280px, 1fr); gap: 24px; align-items: start; }
+    .card { border: 1px solid var(--line); border-radius: 24px; background: linear-gradient(145deg, rgba(24,31,58,.9), rgba(10,14,29,.85)); box-shadow: var(--shadow); backdrop-filter: blur(18px); }
+    .board-card { padding: clamp(16px, 3vw, 28px); }
+    .board-top { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .board-title { margin: 0; font-size: 1.15rem; }
+    .difficulty { color: var(--muted); font-size: .84rem; }
+
+    #sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); aspect-ratio: 1; width: 100%; overflow: hidden; border: 2px solid rgba(255,255,255,.5); border-radius: 13px; background: var(--panel-strong); box-shadow: 0 0 0 7px rgba(115,230,208,.04), 0 20px 60px rgba(0,0,0,.26); }
+    .cell { min-width: 0; border: 1px solid var(--line); color: var(--text); background: rgba(255,255,255,.025); text-align: center; font-size: clamp(1rem, 3vw, 1.65rem); font-weight: 700; outline: none; transition: .18s ease; }
+    .cell:focus { z-index: 2; background: rgba(115,230,208,.12); box-shadow: inset 0 0 0 2px var(--accent), 0 0 18px rgba(115,230,208,.28); }
+    .cell.given { color: #d0d7ec; background: rgba(255,255,255,.1); cursor: not-allowed; }
+    .cell.user-filled { color: var(--accent); }
+    .cell.highlight { color: #201b07; background: var(--gold); box-shadow: inset 0 0 0 2px #fff0a9, 0 0 18px rgba(255,215,106,.45); }
+    .cell.error { color: #fff; background: rgba(255,116,141,.25); box-shadow: inset 0 0 0 2px var(--danger); }
+    .cell:nth-child(3n) { border-right: 2px solid rgba(255,255,255,.42); }
+    .cell:nth-child(9n) { border-right: 0; }
+    .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid rgba(255,255,255,.42); }
+
+    .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; margin-top: 18px; }
+    button { border: 0; border-radius: 13px; padding: 14px 15px; color: var(--text); background: rgba(255,255,255,.08); cursor: pointer; font: inherit; font-weight: 800; transition: transform .18s ease, filter .18s ease, opacity .18s ease; }
+    button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.15); }
+    button:disabled { cursor: not-allowed; opacity: .52; }
+    .primary { color: #061313; background: linear-gradient(135deg, var(--accent), #b2fff0); }
+    .secondary { border: 1px solid var(--line); }
+    .danger { border: 1px solid rgba(255,116,141,.35); color: #ffb6c3; background: rgba(255,116,141,.1); }
+
+    .side { display: grid; gap: 16px; }
+    .side-card { padding: 22px; }
+    .side-card h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 1.03rem; }
+    .side-card h2::before { content: "✦"; color: var(--accent); }
+    .side-card p { margin: 0; color: var(--muted); line-height: 1.6; font-size: .94rem; }
+    .clue { position: relative; overflow: hidden; border-color: rgba(169,121,255,.34); background: linear-gradient(145deg, rgba(74,48,113,.34), rgba(12,16,33,.88)); }
+    .clue::after { content: "?"; position: absolute; right: 20px; bottom: -23px; color: rgba(169,121,255,.14); font-size: 8rem; font-weight: 900; line-height: 1; }
+    .timer-box { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 17px; padding: 14px; border: 1px solid rgba(255,215,106,.22); border-radius: 15px; background: rgba(255,215,106,.06); }
+    .timer-label { color: #ffeaa1; font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+    #countdown { color: var(--gold); font-variant-numeric: tabular-nums; font-size: 1.55rem; font-weight: 900; letter-spacing: .04em; }
+    #status { min-height: 24px; margin-top: 14px; color: var(--muted); font-size: .9rem; }
+    #status.success { color: var(--accent); }
+    #status.error { color: var(--danger); }
+    .legend { display: grid; gap: 11px; margin-top: 17px; color: var(--muted); font-size: .86rem; }
+    .legend div { display: flex; align-items: center; gap: 10px; }
+    .dot { width: 14px; height: 14px; border-radius: 4px; background: rgba(255,255,255,.1); border: 1px solid var(--line); }
+    .dot.gold { background: var(--gold); border-color: #fff0a9; }
+    .dot.teal { background: rgba(115,230,208,.25); border-color: var(--accent); }
+
+    @media (max-width: 820px) {
+      header { flex-direction: column; }
+      .layout { grid-template-columns: 1fr; }
+      .side { grid-template-columns: repeat(2, 1fr); }
+      .clue { grid-column: span 2; }
+    }
+    @media (max-width: 520px) {
+      .app { width: min(100% - 20px, 440px); padding-top: 24px; }
+      .side { grid-template-columns: 1fr; }
+      .clue { grid-column: auto; }
+      .actions { grid-template-columns: 1fr; }
+      .badge { align-self: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <div class="eyebrow">Archivo clasificado · Nivel 09</div>
+        <h1>El <span>código</span> oculto</h1>
+        <p class="intro">Resuelve el sudoku, descubre las cuatro casillas doradas y reconstruye la clave que abre el candado. La solución automática existe… pero tendrás que esperar.</p>
+      </div>
+      <div class="badge"><i></i> Modo misterio activo</div>
+    </header>
+
+    <section class="layout">
+      <div class="card board-card">
+        <div class="board-top">
+          <h2 class="board-title">Panel de descifrado</h2>
+          <span class="difficulty">Dificultad: intermedia</span>
+        </div>
+        <div id="sudoku-board" aria-label="Tablero de sudoku"></div>
+        <div class="actions">
+          <button class="primary" id="check-btn">Verificar solución</button>
+          <button class="secondary" id="reset-btn">Reiniciar tablero</button>
+          <button class="danger" id="solve-btn" disabled>Resolución automática</button>
+        </div>
+        <div id="status" role="status">Las pistas originales están bloqueadas. El resto depende de ti.</div>
+      </div>
+
+      <aside class="side">
+        <div class="card side-card clue">
+          <h2>La pista</h2>
+          <p>Cuando el tablero sea correcto, cuatro cifras se iluminarán en dorado. En ese orden forman la combinación del candado.</p>
+        </div>
+        <div class="card side-card">
+          <h2>Acceso restringido</h2>
+          <p>La resolución automática está bloqueada al iniciar cada partida. La cuenta atrás es parte del desafío.</p>
+          <div class="timer-box">
+            <span class="timer-label">Desbloqueo en</span>
+            <span id="countdown">20:00</span>
+          </div>
+        </div>
+        <div class="card side-card">
+          <h2>Leyenda</h2>
+          <div class="legend">
+            <div><span class="dot"></span> Casilla original</div>
+            <div><span class="dot teal"></span> Número introducido</div>
+            <div><span class="dot gold"></span> Dígito de la clave</div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const puzzle = [
+      [5, 3, 0, 0, 7, 0, 0, 0, 0],
+      [6, 0, 0, 1, 9, 5, 0, 0, 0],
+      [0, 9, 8, 0, 0, 0, 0, 6, 0],
+      [8, 0, 0, 0, 6, 0, 0, 0, 3],
+      [4, 0, 0, 8, 0, 3, 0, 0, 1],
+      [7, 0, 0, 0, 2, 0, 0, 0, 6],
+      [0, 6, 0, 0, 0, 0, 2, 8, 0],
+      [0, 0, 0, 4, 1, 9, 0, 0, 5],
+      [0, 0, 0, 0, 8, 0, 0, 7, 9]
+    ];
+
+    const solution = [
+      [5,3,4,6,7,8,9,1,2], [6,7,2,1,9,5,3,4,8], [1,9,8,3,4,2,5,6,7],
+      [8,5,9,7,6,1,4,2,3], [4,2,6,8,5,3,7,9,1], [7,1,3,9,2,4,8,5,6],
+      [9,6,1,5,3,7,2,8,4], [2,8,7,4,1,9,6,3,5], [3,4,5,2,8,6,1,7,9]
+    ];
+
+    const board = document.getElementById('sudoku-board');
+    const status = document.getElementById('status');
+    const solveBtn = document.getElementById('solve-btn');
+    const countdown = document.getElementById('countdown');
+    const cooldownMs = 20 * 60 * 1000;
+    const unlockAt = Date.now() + cooldownMs;
+
+    function renderBoard() {
+      board.innerHTML = '';
+      puzzle.forEach((row, r) => row.forEach((value, c) => {
+        const input = document.createElement('input');
+        input.className = 'cell';
+        input.type = 'text';
+        input.inputMode = 'numeric';
+        input.maxLength = 1;
+        input.dataset.row = r;
+        input.dataset.col = c;
+        input.setAttribute('aria-label', `Fila ${r + 1}, columna ${c + 1}`);
+        if (value) {
+          input.value = value;
+          input.readOnly = true;
+          input.classList.add('given');
+        } else {
+          input.addEventListener('input', () => {
+            input.value = input.value.replace(/[^1-9]/g, '');
+            input.classList.toggle('user-filled', Boolean(input.value));
+            input.classList.remove('error');
+            status.textContent = 'El tablero registra tus movimientos…';
+            status.className = '';
+          });
+        }
+        board.appendChild(input);
+      }));
+    }
+
+    function getGrid() {
+      return [...board.children].reduce((grid, cell, index) => {
+        (grid[Math.floor(index / 9)] ||= []).push(Number(cell.value) || 0);
+        return grid;
+      }, []);
+    }
+
+    function checkSolution() {
+      const grid = getGrid();
+      let complete = true;
+      [...board.children].forEach((cell, index) => {
+        const r = Math.floor(index / 9), c = index % 9;
+        cell.classList.remove('error', 'highlight');
+        if (grid[r][c] !== solution[r][c]) {
+          complete = false;
+          if (grid[r][c]) cell.classList.add('error');
+        }
+      });
+      if (!complete) {
+        status.textContent = 'Aún hay cifras fuera de lugar. La clave permanece oculta.';
+        status.className = 'error';
+        return;
+      }
+      const keyCells = [4, 28, 52, 76];
+      keyCells.forEach(index => board.children[index].classList.add('highlight'));
+      status.textContent = 'Código descubierto: 7 · 8 · 4 · 1. El candado puede abrirse.';
+      status.className = 'success';
+    }
+
+    document.getElementById('check-btn').addEventListener('click', checkSolution);
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      renderBoard();
+      status.textContent = 'Tablero reiniciado. La cuenta atrás continúa…';
+      status.className = '';
+    });
+
+    solveBtn.addEventListener('click', () => {
+      [...board.children].forEach((cell, index) => {
+        const r = Math.floor(index / 9), c = index % 9;
+        cell.value = solution[r][c];
+        cell.classList.toggle('user-filled', !cell.readOnly);
+        cell.classList.remove('error');
+      });
+      status.textContent = 'La solución automática ha completado el tablero.';
+      status.className = 'success';
+    });
+
+    function updateTimer() {
+      const remaining = Math.max(0, unlockAt - Date.now());
+      const minutes = String(Math.floor(remaining / 60000)).padStart(2, '0');
+      const seconds = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+      countdown.textContent = `${minutes}:${seconds}`;
+      if (remaining === 0) {
+        solveBtn.disabled = false;
+        solveBtn.textContent = 'Resolución automática';
+        countdown.textContent = 'LISTO';
+        status.textContent = 'El acceso restringido está disponible.';
+        status.className = 'success';
+        return;
+      }
+      solveBtn.disabled = true;
+      requestAnimationFrame(() => setTimeout(updateTimer, 250));
+    }
+
+    renderBoard();
+    updateTimer();
+  </script>
+</body>
+</html>
