@@ -229,6 +229,7 @@
     function checkSolution() {
       const grid = getGrid();
       let complete = true;
+    
       [...board.children].forEach((cell, index) => {
         const r = Math.floor(index / 9), c = index % 9;
         cell.classList.remove('error', 'highlight');
@@ -237,13 +238,16 @@
           if (grid[r][c]) cell.classList.add('error');
         }
       });
+    
       if (!complete) {
         status.textContent = 'Aún hay cifras fuera de lugar. La clave permanece oculta.';
         status.className = 'error';
         return;
       }
-      const keyCells = [4, 28, 52, 76];
+    
+      const keyCells = [42, 17, 22, 44];
       keyCells.forEach(index => board.children[index].classList.add('highlight'));
+    
       status.textContent = 'Código descubierto: 7 · 8 · 4 · 1. El candado puede abrirse.';
       status.className = 'success';
     }
